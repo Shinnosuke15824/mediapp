@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "374759736062",
+    "firebase_url": "https://mediapp-c6cde-default-rtdb.firebaseio.com",
+    "project_id": "mediapp-c6cde",
+    "storage_bucket": "mediapp-c6cde.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:374759736062:android:c125d2ba8777352f7c9baf",
+        "android_client_info": {
+          "package_name": "com.shin.media.mediapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "374759736062-9679v38j9aojh89573nfi58tl704nmjo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkirUuoOKSUrlNn6GT3UzKDHhuXp_z3Xw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "374759736062-9679v38j9aojh89573nfi58tl704nmjo.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "374759736062-ckpa7c2fbfqehhusgd0fetclseblgo3j.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.shin.media.mediapp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
