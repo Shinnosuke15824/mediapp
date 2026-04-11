@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import 'package:provider/provider.dart'; // 1. Thêm import Provider
 import 'package:shared_preferences/shared_preferences.dart'; // Thêm SharedPreferences để lưu trạng thái
 import 'theme_provider.dart'; // 2. Thêm import ThemeProvider
@@ -61,6 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
     'chat_hint': isVietnamese ? "Nhập tin nhắn..." : "Type a message...",
     'bot_typing': isVietnamese ? "Bác sĩ đang gõ..." : "Doctor is typing...",
     'reset_chat': isVietnamese ? "Làm mới chat" : "Reset chat",
+    'select_hosp': isVietnamese ? "Chọn nơi khám bệnh" : "Select Hospital",
+    'hosp_title': isVietnamese ? "Danh sách bệnh viện" : "Hospital List",
+    'back_hosp': isVietnamese ? "Đổi bệnh viện" : "Change Hospital",
+    'hosp_desc': isVietnamese
+        ? "Vui lòng chọn bệnh viện để xem bác sĩ"
+        : "Choose a hospital to see doctors",
   };
 
   final List<Map<String, String>> allDoctors = [
@@ -96,6 +102,16 @@ class _HomeScreenState extends State<HomeScreen> {
     },
   ];
 
+  final List<String> hospitals = [
+    "Bệnh viện Đại học Y Dược",
+    "Bệnh viện Chợ Rẫy",
+    "Bệnh viện Từ Dũ",
+    "Bệnh viện Nhi Đồng 1",
+    "Bệnh viện Thống Nhất",
+  ];
+
+  String? _selectedHospital; // Biến lưu bệnh viện đang chọn
+
   List<Map<String, String>> displayedDoctors = [];
   List<Map<String, dynamic>> bookedAppointments = [];
   List<Map<String, dynamic>> _messages = [];
@@ -106,11 +122,10 @@ class _HomeScreenState extends State<HomeScreen> {
     displayedDoctors = List.from(allDoctors);
     _resetChat();
     _initNotifications();
-    _loadAppState(); // Tải lại ngôn ngữ đã lưu
-    _fetchAppointments(); // Tải lịch hẹn từ Firebase ngay khi mở app
+    _loadAppState();
+    _fetchAppointments();
   }
 
-  // --- HÀM TẢI NGÔN NGỮ ĐÃ LƯU TRONG MÁY ---
   void _loadAppState() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -118,7 +133,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  // --- HÀM TẢI LỊCH HẸN TỪ SERVER FIREBASE VÀ ĐỒNG BỘ UI ---
   void _fetchAppointments() async {
     if (user == null) return;
     try {
@@ -138,6 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
           'name': data['doctorName'] ?? 'Bác sĩ',
           'image': img,
           'patient': data['patientName'] ?? 'Bệnh nhân',
+          'hospital': data['hospital'] ?? 'Bệnh viện chưa xác định',
           'date': data['date'] ?? '',
           'time': data['time'] ?? '',
           'dept': data['dept'] ?? '',
@@ -148,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }).toList();
 
       setState(() {
-        bookedAppointments = loadedData; // Cập nhật danh sách hiển thị
+        bookedAppointments = loadedData;
       });
     } catch (e) {
       debugPrint("Lỗi tải lịch hẹn: $e");
@@ -229,14 +244,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (isVietnamese) {
       if (input.contains("chào"))
         return "Chào bạn! Chúc bạn ngày mới tốt lành.";
-      if (input.contains("đau") || input.contains("mệt"))
-        return "Bạn nên đặt lịch khám chuyên khoa để bác sĩ kiểm tra kỹ nhé.";
       return "Bác sĩ đã nhận được thông tin từ bạn!";
     } else {
-      if (input.contains("hello") || input.contains("hi"))
-        return "Hello bạn! Have a great day.";
-      if (input.contains("pain") || input.contains("sick"))
-        return "You should book an appointment for a check-up.";
       return "Doctor has received your message!";
     }
   }
@@ -248,7 +257,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- CẬP NHẬT LOGIC ĐẶT LỊCH: KIỂM TRA TRÙNG 30P & THÔNG BÁO XỊN ---
   Future<void> _bookDoctor(Map<String, String> doc) async {
     final DateTime? d = await showDatePicker(
       context: context,
@@ -327,7 +335,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 hintText: isVietnamese
                     ? "Ví dụ: Nguyễn Văn A..."
                     : "Ex: John Doe...",
-                prefixIcon: const Icon(Icons.badge_outlined),
                 filled: true,
                 fillColor: Theme.of(context).brightness == Brightness.dark
                     ? Colors.grey[800]
@@ -335,10 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(15),
                   borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: const BorderSide(color: Colors.blue, width: 1.5),
                 ),
               ),
             ),
@@ -353,7 +356,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(15),
                   ),
-                  elevation: 0,
                 ),
                 child: Text(
                   isVietnamese ? "XÁC NHẬN ĐẶT LỊCH" : "CONFIRM BOOKING",
@@ -373,7 +375,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (pName == null || pName.isEmpty) return;
     DateTime sel = DateTime(d.year, d.month, d.day, t.hour, t.minute);
 
-    // KIỂM TRA TRÙNG LỊCH 30 PHÚT
     bool conflict = bookedAppointments.any(
       (app) =>
           app['name'] == doc['name'] &&
@@ -382,30 +383,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (conflict) {
-      // THÔNG BÁO TRÙNG LỊCH XỊN XÒ BẰNG SNACKBAR
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.white),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  isVietnamese
-                      ? "Lịch này đã có người đặt , vui lòng chọn giờ khác nhé!"
-                      : "Slot taken by another persone, please pick another time!",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
+          content: Text(
+            isVietnamese ? "Lịch này đã có người đặt!" : "Slot taken!",
           ),
-          backgroundColor: Colors.orange.shade800,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          margin: const EdgeInsets.all(15),
-          duration: const Duration(seconds: 4),
+          backgroundColor: Colors.orange,
         ),
       );
     } else {
@@ -415,29 +398,18 @@ class _HomeScreenState extends State<HomeScreen> {
           'userId': user?.uid,
           'doctorName': doc['name'],
           'patientName': pName,
+          'hospital':
+              _selectedHospital, // Lưu bệnh viện đang chọn vào Firestore
           'date': DateFormat('dd/MM/yyyy').format(d),
           'time': timeStr,
           'dept': doc['dept'],
           'fullDateTime': sel.toIso8601String(),
           'createdAt': FieldValue.serverTimestamp(),
         });
-
-        _fetchAppointments(); // Đồng bộ lại UI
-
-        if (mounted) {
-          _showNotification(pName, doc['name']!, timeStr);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                isVietnamese ? "Đặt lịch thành công!" : "Booking successful!",
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+        _fetchAppointments();
+        _showNotification(pName, doc['name']!, timeStr);
       } catch (e) {
-        _showError("Lỗi hệ thống: $e");
+        debugPrint("Lỗi đặt lịch: $e");
       }
     }
   }
@@ -543,327 +515,142 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           const SizedBox(height: 10),
           Text(lang['welcome'], style: const TextStyle(color: Colors.grey)),
-          Text(
-            lang['find_doc'],
-            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          _buildSearchBar(),
-          const SizedBox(height: 20),
-          _buildCategorySection(),
-          const SizedBox(height: 20),
-          _buildDoctorGrid(),
+
+          if (_selectedHospital == null) ...[
+            Text(
+              lang['select_hosp'],
+              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              lang['hosp_desc'],
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 25),
+            _buildHospitalGrid(),
+          ] else ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedHospital!,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => setState(() => _selectedHospital = null),
+                  icon: const Icon(Icons.swap_horiz, size: 18),
+                  label: Text(lang['back_hosp']),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            _buildSearchBar(),
+            const SizedBox(height: 20),
+            Text(
+              lang['dept'],
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            _buildCategorySection(),
+            const SizedBox(height: 20),
+            _buildDoctorGrid(),
+          ],
           const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  Widget _buildHistoryTab() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            lang['my_booking'],
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue,
+  Widget _buildHospitalGrid() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: hospitals.length,
+      itemBuilder: (context, i) => Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              _selectedHospital = hospitals[i];
+              // Hiển thị cả 6 bác sĩ cho bệnh viện được chọn
+              displayedDoctors = List.from(allDoctors);
+            });
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade400, Colors.blue.shade700],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.3),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.local_hospital_rounded,
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hospitals[i],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        isVietnamese
+                            ? "Xem danh sách bác sĩ"
+                            : "See doctors list",
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.8),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 15),
-          Expanded(
-            child: bookedAppointments.isEmpty
-                ? Center(child: Text(lang['no_booking']))
-                : ListView.builder(
-                    itemCount: bookedAppointments.length,
-                    itemBuilder: (context, index) {
-                      final app = bookedAppointments[index];
-                      return Card(
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundImage: AssetImage(app['image']),
-                          ),
-                          title: Text(app['name']),
-                          subtitle: Text(
-                            "${lang['patient']}: ${app['patient']}\n${app['date']} - ${app['time']}",
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () async {
-                              await FirebaseFirestore.instance
-                                  .collection('appointments')
-                                  .doc(app['id'])
-                                  .delete();
-                              _fetchAppointments();
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+        ),
       ),
     );
-  }
-
-  Widget _buildProfileTab() {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              CircleAvatar(
-                radius: 60,
-                backgroundColor: _avatarColor,
-                child: const Icon(Icons.person, size: 60, color: Colors.white),
-              ),
-              CircleAvatar(
-                backgroundColor: Colors.white,
-                radius: 18,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.camera_alt,
-                    size: 18,
-                    color: Colors.blue,
-                  ),
-                  onPressed: () => setState(
-                    () => _avatarColor = (List.of(
-                      Colors.primaries,
-                    )..shuffle()).first,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            user?.email ?? "2200008359@nttu.edu.vn",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 30),
-
-          ListTile(
-            leading: Icon(
-              themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-              color: Colors.amber,
-            ),
-            title: Text(isVietnamese ? "Chế độ tối" : "Dark Mode"),
-            trailing: Switch(
-              value: themeProvider.isDarkMode,
-              onChanged: (value) {
-                themeProvider.toggleTheme();
-              },
-            ),
-          ),
-
-          _profileMenu(Icons.lock_outline, lang['change_pw'], () {
-            _currentPasswordController.clear();
-            _newPasswordController.clear();
-            _confirmPasswordController.clear();
-
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (ctx) => Container(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-                  left: 25,
-                  right: 25,
-                  top: 25,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).scaffoldBackgroundColor,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(30),
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 50,
-                        height: 5,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      lang['change_pw'],
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: _currentPasswordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: isVietnamese
-                            ? "Mật khẩu hiện tại"
-                            : "Current password",
-                        prefixIcon: const Icon(Icons.lock_person_outlined),
-                        filled: true,
-                        fillColor: Theme.of(ctx).brightness == Brightness.dark
-                            ? Colors.grey[800]
-                            : Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _newPasswordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: isVietnamese
-                            ? "Mật khẩu mới"
-                            : "New password",
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        filled: true,
-                        fillColor: Theme.of(ctx).brightness == Brightness.dark
-                            ? Colors.grey[800]
-                            : Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 15),
-                    TextField(
-                      controller: _confirmPasswordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: isVietnamese
-                            ? "Xác nhận mật khẩu mới"
-                            : "Confirm new password",
-                        prefixIcon: const Icon(Icons.check_circle_outline),
-                        filled: true,
-                        fillColor: Theme.of(ctx).brightness == Brightness.dark
-                            ? Colors.grey[800]
-                            : Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(15),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 25),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          String currentPw = _currentPasswordController.text
-                              .trim();
-                          String newPw = _newPasswordController.text.trim();
-                          String confirmPw = _confirmPasswordController.text
-                              .trim();
-
-                          if (currentPw.isEmpty ||
-                              newPw.isEmpty ||
-                              confirmPw.isEmpty) {
-                            _showError(
-                              isVietnamese
-                                  ? "Vui lòng nhập đầy đủ thông tin!"
-                                  : "Please fill in all fields!",
-                            );
-                            return;
-                          }
-                          try {
-                            AuthCredential credential =
-                                EmailAuthProvider.credential(
-                                  email: user!.email!,
-                                  password: currentPw,
-                                );
-                            await user?.reauthenticateWithCredential(
-                              credential,
-                            );
-                            await user?.updatePassword(newPw);
-
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  isVietnamese
-                                      ? "Đổi mật khẩu thành công!"
-                                      : "Password updated!",
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                          } catch (e) {
-                            _showError(
-                              isVietnamese
-                                  ? "Mật khẩu hiện tại không đúng!"
-                                  : "Wrong current password!",
-                            );
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        child: Text(
-                          isVietnamese ? "CẬP NHẬT" : "UPDATE",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
-
-          _profileMenu(Icons.logout, lang['logout'], () async {
-            await FirebaseAuth.instance.signOut();
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (c) => Login()),
-            );
-          }, isRed: true),
-        ],
-      ),
-    );
-  }
-
-  Widget _getBody() {
-    switch (_currentIndex) {
-      case 0:
-        return _buildHomeTab();
-      case 1:
-        return _buildHistoryTab();
-      case 2:
-        return _buildChatTab();
-      case 3:
-        return _buildProfileTab();
-      default:
-        return _buildHomeTab();
-    }
   }
 
   Widget _buildSearchBar() => TextField(
@@ -887,57 +674,39 @@ class _HomeScreenState extends State<HomeScreen> {
   );
 
   Widget _buildCategorySection() {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              lang['dept'],
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            TextButton(
-              onPressed: () =>
-                  setState(() => displayedDoctors = List.from(allDoctors)),
-              child: Text(lang['all']),
-            ),
-          ],
-        ),
-        SizedBox(
-          height: 100,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _catItem(
-                Icons.favorite,
-                isVietnamese ? "Tim mạch" : "Heart",
-                "Tim mạch",
-              ),
-              _catItem(Icons.visibility, isVietnamese ? "Mắt" : "Eye", "Mắt"),
-              _catItem(
-                Icons.child_care,
-                isVietnamese ? "Nhi khoa" : "Pediatric",
-                "Nhi khoa",
-              ),
-              _catItem(
-                Icons.psychology,
-                isVietnamese ? "Tâm thần" : "Psychology",
-                "Tâm thần",
-              ),
-              _catItem(
-                Icons.healing,
-                isVietnamese ? "Chỉnh hình" : "Orthopedic",
-                "Chỉnh hình",
-              ),
-              _catItem(
-                Icons.medical_services,
-                isVietnamese ? "Nội khoa" : "General",
-                "Nội khoa",
-              ),
-            ],
+    return SizedBox(
+      height: 100,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _catItem(
+            Icons.favorite,
+            isVietnamese ? "Tim mạch" : "Heart",
+            "Tim mạch",
           ),
-        ),
-      ],
+          _catItem(Icons.visibility, isVietnamese ? "Mắt" : "Eye", "Mắt"),
+          _catItem(
+            Icons.child_care,
+            isVietnamese ? "Nhi khoa" : "Pediatric",
+            "Nhi khoa",
+          ),
+          _catItem(
+            Icons.psychology,
+            isVietnamese ? "Tâm thần" : "Psychology",
+            "Tâm thần",
+          ),
+          _catItem(
+            Icons.healing,
+            isVietnamese ? "Chỉnh hình" : "Orthopedic",
+            "Chỉnh hình",
+          ),
+          _catItem(
+            Icons.medical_services,
+            isVietnamese ? "Nội khoa" : "General",
+            "Nội khoa",
+          ),
+        ],
+      ),
     );
   }
 
@@ -1039,6 +808,270 @@ class _HomeScreenState extends State<HomeScreen> {
     ),
   );
 
+  Widget _buildHistoryTab() {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            lang['my_booking'],
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+          const SizedBox(height: 15),
+          Expanded(
+            child: bookedAppointments.isEmpty
+                ? Center(child: Text(lang['no_booking']))
+                : ListView.builder(
+                    itemCount: bookedAppointments.length,
+                    itemBuilder: (context, index) {
+                      final app = bookedAppointments[index];
+                      return Card(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: AssetImage(app['image']),
+                          ),
+                          title: Text(
+                            app['name'],
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            "${lang['patient']}: ${app['patient']}\n🏢 ${app['hospital']}\n📅 ${app['date']} - ${app['time']}",
+                          ),
+                          isThreeLine: true,
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async {
+                              await FirebaseFirestore.instance
+                                  .collection('appointments')
+                                  .doc(app['id'])
+                                  .delete();
+                              _fetchAppointments();
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileTab() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          Stack(
+            alignment: Alignment.bottomRight,
+            children: [
+              CircleAvatar(
+                radius: 60,
+                backgroundColor: _avatarColor,
+                child: const Icon(Icons.person, size: 60, color: Colors.white),
+              ),
+              CircleAvatar(
+                backgroundColor: Colors.white,
+                radius: 18,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.camera_alt,
+                    size: 18,
+                    color: Colors.blue,
+                  ),
+                  onPressed: () => setState(
+                    () => _avatarColor = (List.of(
+                      Colors.primaries,
+                    )..shuffle()).first,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            user?.email ?? "User",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 30),
+          ListTile(
+            leading: Icon(
+              themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+              color: Colors.amber,
+            ),
+            title: Text(isVietnamese ? "Chế độ tối" : "Dark Mode"),
+            trailing: Switch(
+              value: themeProvider.isDarkMode,
+              onChanged: (v) => themeProvider.toggleTheme(),
+            ),
+          ),
+          _profileMenu(Icons.lock_outline, lang['change_pw'], () {
+            _currentPasswordController.clear();
+            _newPasswordController.clear();
+            _confirmPasswordController.clear();
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (ctx) => Container(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+                  left: 25,
+                  right: 25,
+                  top: 25,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).scaffoldBackgroundColor,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(30),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      lang['change_pw'],
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _currentPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: isVietnamese
+                            ? "Mật khẩu hiện tại"
+                            : "Current password",
+                        prefixIcon: const Icon(Icons.lock_person_outlined),
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    TextField(
+                      controller: _newPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: isVietnamese
+                            ? "Mật khẩu mới"
+                            : "New password",
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 15),
+                    TextField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        hintText: isVietnamese
+                            ? "Xác nhận mật khẩu mới"
+                            : "Confirm new password",
+                        prefixIcon: const Icon(Icons.check_circle_outline),
+                        filled: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 25),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          String cpw = _currentPasswordController.text.trim();
+                          String npw = _newPasswordController.text.trim();
+                          String cnpw = _confirmPasswordController.text.trim();
+                          if (cpw.isEmpty || npw.isEmpty || cnpw != npw) {
+                            _showError("Vui lòng kiểm tra lại thông tin!");
+                            return;
+                          }
+                          try {
+                            AuthCredential cred = EmailAuthProvider.credential(
+                              email: user!.email!,
+                              password: cpw,
+                            );
+                            await user?.reauthenticateWithCredential(cred);
+                            await user?.updatePassword(npw);
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  isVietnamese ? "Đổi thành công!" : "Success!",
+                                ),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            _showError("Lỗi: $e");
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                        ),
+                        child: Text(
+                          isVietnamese ? "CẬP NHẬT" : "UPDATE",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          _profileMenu(Icons.logout, lang['logout'], () async {
+            await FirebaseAuth.instance.signOut();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (c) => Login()),
+            );
+          }, isRed: true),
+        ],
+      ),
+    );
+  }
+
+  Widget _getBody() {
+    switch (_currentIndex) {
+      case 0:
+        return _buildHomeTab();
+      case 1:
+        return _buildHistoryTab();
+      case 2:
+        return _buildChatTab();
+      case 3:
+        return _buildProfileTab();
+      default:
+        return _buildHomeTab();
+    }
+  }
+
   Widget _profileMenu(
     IconData icon,
     String title,
@@ -1059,18 +1092,6 @@ class _HomeScreenState extends State<HomeScreen> {
     trailing: const Icon(Icons.arrow_forward_ios, size: 16),
     onTap: onTap,
   );
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _chatController.dispose();
-    _nameController.dispose();
-    _currentPasswordController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
