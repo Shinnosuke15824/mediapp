@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminPage extends StatefulWidget {
-  const AdminPage({super.key});
+  final bool isVietnamese;
+  const AdminPage({super.key, required this.isVietnamese});
 
   @override
   State<AdminPage> createState() => _AdminPageState();
@@ -12,22 +13,63 @@ class _AdminPageState extends State<AdminPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // Controllers cho Bác sĩ
+  // Map ngôn ngữ nội bộ cho trang Admin
+  Map<String, String> get adminLang => {
+    'title': widget.isVietnamese ? "Hệ Thống Quản Trị" : "Admin System",
+    'tab_add': widget.isVietnamese ? "THÊM BÁC SĨ" : "ADD DOCTOR",
+    'tab_list': widget.isVietnamese ? "DANH SÁCH BS" : "DOCTORS LIST",
+    'tab_dept': widget.isVietnamese ? "CHUYÊN KHOA" : "SPECIALITY",
+    'tab_hosp': widget.isVietnamese ? "BỆNH VIỆN" : "HOSPITAL",
+    'name_label': widget.isVietnamese ? "Tên bác sĩ" : "Doctor Name",
+    'dept_label': widget.isVietnamese
+        ? "Chọn Chuyên khoa"
+        : "Select Speciality",
+    'hosp_label': widget.isVietnamese ? "Chọn Bệnh viện" : "Select Hospital",
+    'img_label': widget.isVietnamese ? "Link ảnh" : "Image Link",
+    'save_btn': widget.isVietnamese ? "LƯU BÁC SĨ" : "SAVE DOCTOR",
+    'choose': widget.isVietnamese ? "Bấm để chọn" : "Click to select",
+    'hint_dept': widget.isVietnamese
+        ? "Tên chuyên khoa mới"
+        : "New Speciality Name",
+    'hint_hosp': widget.isVietnamese
+        ? "Tên bệnh viện mới"
+        : "New Hospital Name",
+    'msg_fill': widget.isVietnamese
+        ? "Vui lòng nhập đủ thông tin!"
+        : "Please fill all fields!",
+    'msg_save_doc': widget.isVietnamese
+        ? "Thêm bác sĩ thành công! 🔥"
+        : "Doctor added successfully! 🔥",
+    'msg_save_spec': widget.isVietnamese
+        ? "Thêm chuyên khoa thành công!"
+        : "Speciality added!",
+    'msg_save_hosp': widget.isVietnamese
+        ? "Thêm bệnh viện thành công!"
+        : "Hospital added!",
+    'confirm_del': widget.isVietnamese ? "Xác nhận xoá?" : "Confirm delete?",
+    'del_desc': widget.isVietnamese
+        ? "Dữ liệu sẽ mất vĩnh viễn."
+        : "Data will be lost forever.",
+    'cancel': widget.isVietnamese ? "HỦY" : "CANCEL",
+    'del_now': widget.isVietnamese ? "XOÁ NGAY" : "DELETE NOW",
+    'del_success': widget.isVietnamese
+        ? "Đã xoá thành công!"
+        : "Deleted successfully!",
+  };
+
   final _nameController = TextEditingController();
   final _imageLinkController = TextEditingController();
-
-  // Controller cho Chuyên khoa & Bệnh viện
   final _specialityNameController = TextEditingController();
   final _hospitalNameController = TextEditingController();
 
-  String? _selectedHospital; // Sẽ chọn từ Firebase
-  String? _selectedDept; // Sẽ chọn từ Firebase
+  String? _selectedHospital;
+  String? _selectedDept;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this); // Nâng lên 4 Tab
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -40,7 +82,49 @@ class _AdminPageState extends State<AdminPage>
     super.dispose();
   }
 
-  // --- HÀM TỰ ĐỘNG GÁN ICON THEO TÊN ---
+  // --- HÀM DỊCH TỰ ĐỘNG: ĐÃ FIX TRIỆT ĐỂ LỖI RANGEERROR ---
+  String _getDisplayName(String name) {
+    if (widget.isVietnamese) return name;
+
+    String key = name.toLowerCase().trim();
+
+    // 1. Loại bỏ dấu tiếng Việt bằng Regex an toàn
+    final vietnamese = {
+      'a': '[àáạảãâầấậẩẫăằắặẳẵ]',
+      'e': '[èéẹẻẽêềếệểễ]',
+      'i': '[ìíịỉĩ]',
+      'o': '[òóọỏõôồốộổỗơờớợởỡ]',
+      'u': '[ùúụủũưừứựửữ]',
+      'y': '[ỳýỵỷỹ]',
+      'd': '[đ]',
+    };
+
+    for (var entry in vietnamese.entries) {
+      key = key.replaceAll(RegExp(entry.value), entry.key);
+    }
+
+    // 2. Tra cứu trong từ điển
+    Map<String, String> translation = {
+      "tim mach": "Cardiology",
+      "mat": "Ophthalmology",
+      "nhi khoa": "Pediatrics",
+      "tam than": "Psychiatry",
+      "chinh hinh": "Orthopedics",
+      "noi khoa": "Internal Medicine",
+      "ngoai khoa": "Surgery",
+      "da lieu": "Dermatology",
+      "tai mui hong": "ENT",
+      "rang ham mat": "Dentistry",
+      "ung buou": "Oncology",
+      "phu khoa": "Gynecology",
+      "da khoa": "General Clinic",
+      "than": "Nephrology",
+      "tieu hoa": "Gastroenterology",
+    };
+
+    return translation[key] ?? name;
+  }
+
   IconData _getIconForSpeciality(String name) {
     name = name.toLowerCase();
     if (name.contains("tim") || name.contains("mạch"))
@@ -62,14 +146,15 @@ class _AdminPageState extends State<AdminPage>
     return Icons.label_important_outline;
   }
 
-  // --- HÀM XOÁ CHUNG ---
   Future<void> _deleteItem(String collection, String id, String name) async {
     try {
       await FirebaseFirestore.instance.collection(collection).doc(id).delete();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Đã xoá '$name' thành công!"),
+            content: Text(
+              "'${_getDisplayName(name)}' ${adminLang['del_success']}",
+            ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
           ),
@@ -80,7 +165,6 @@ class _AdminPageState extends State<AdminPage>
     }
   }
 
-  // --- LOGIC LƯU CHUYÊN KHOA ---
   Future<void> _saveSpeciality() async {
     if (_specialityNameController.text.isEmpty) return;
     setState(() => _isSaving = true);
@@ -90,13 +174,12 @@ class _AdminPageState extends State<AdminPage>
         'createdAt': FieldValue.serverTimestamp(),
       });
       _specialityNameController.clear();
-      _showSuccess("Thêm chuyên khoa thành công!");
+      _showSuccess(adminLang['msg_save_spec']!);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  // --- LOGIC LƯU BỆNH VIỆN (NEW) ---
   Future<void> _saveHospital() async {
     if (_hospitalNameController.text.isEmpty) return;
     setState(() => _isSaving = true);
@@ -106,21 +189,20 @@ class _AdminPageState extends State<AdminPage>
         'createdAt': FieldValue.serverTimestamp(),
       });
       _hospitalNameController.clear();
-      _showSuccess("Thêm bệnh viện thành công!");
+      _showSuccess(adminLang['msg_save_hosp']!);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
   }
 
-  // --- LOGIC LƯU BÁC SĨ ---
   Future<void> _saveDoctor() async {
     if (_nameController.text.isEmpty ||
         _imageLinkController.text.isEmpty ||
         _selectedDept == null ||
         _selectedHospital == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Vui lòng nhập đủ tên, ảnh và CHỌN đủ thông tin!"),
+        SnackBar(
+          content: Text(adminLang['msg_fill']!),
           backgroundColor: Colors.orange,
         ),
       );
@@ -137,7 +219,7 @@ class _AdminPageState extends State<AdminPage>
       });
       _nameController.clear();
       _imageLinkController.clear();
-      _showSuccess("Thêm bác sĩ thành công! 🔥");
+      _showSuccess(adminLang['msg_save_doc']!);
       _tabController.animateTo(1);
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -157,13 +239,12 @@ class _AdminPageState extends State<AdminPage>
     final backgroundColor = Theme.of(context).brightness == Brightness.dark
         ? Colors.grey[900]
         : Colors.grey[100];
-
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        title: const Text(
-          "Hệ Thống Quản Trị",
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          adminLang['title']!,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
@@ -174,11 +255,14 @@ class _AdminPageState extends State<AdminPage>
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           isScrollable: true,
-          tabs: const [
-            Tab(icon: Icon(Icons.person_add), text: "THÊM BÁC SĨ"),
-            Tab(icon: Icon(Icons.list_alt), text: "DANH SÁCH BS"),
-            Tab(icon: Icon(Icons.category), text: "CHUYÊN KHOA"),
-            Tab(icon: Icon(Icons.local_hospital), text: "BỆNH VIỆN"),
+          tabs: [
+            Tab(icon: const Icon(Icons.person_add), text: adminLang['tab_add']),
+            Tab(icon: const Icon(Icons.list_alt), text: adminLang['tab_list']),
+            Tab(icon: const Icon(Icons.category), text: adminLang['tab_dept']),
+            Tab(
+              icon: const Icon(Icons.local_hospital),
+              text: adminLang['tab_hosp'],
+            ),
           ],
         ),
       ),
@@ -194,7 +278,6 @@ class _AdminPageState extends State<AdminPage>
     );
   }
 
-  // --- TAB 1: THÊM BÁC SĨ ---
   Widget _buildAddDoctorTab() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -206,14 +289,14 @@ class _AdminPageState extends State<AdminPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildProInput(
-                "Tên bác sĩ",
+                adminLang['name_label']!,
                 _nameController,
                 Icons.person_outline,
               ),
               const SizedBox(height: 15),
-              const Text(
-                "Chọn Chuyên khoa",
-                style: TextStyle(
+              Text(
+                adminLang['dept_label']!,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                   color: Colors.grey,
@@ -226,11 +309,15 @@ class _AdminPageState extends State<AdminPage>
                 (val) => setState(() => _selectedDept = val),
               ),
               const SizedBox(height: 15),
-              _buildProInput("Link ảnh", _imageLinkController, Icons.link),
+              _buildProInput(
+                adminLang['img_label']!,
+                _imageLinkController,
+                Icons.link,
+              ),
               const SizedBox(height: 20),
-              const Text(
-                "Chọn Bệnh viện",
-                style: TextStyle(
+              Text(
+                adminLang['hosp_label']!,
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                   color: Colors.grey,
@@ -256,9 +343,9 @@ class _AdminPageState extends State<AdminPage>
                   ),
                   child: _isSaving
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          "LƯU BÁC SĨ",
-                          style: TextStyle(
+                      : Text(
+                          adminLang['save_btn']!,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
@@ -272,7 +359,6 @@ class _AdminPageState extends State<AdminPage>
     );
   }
 
-  // --- TAB 2: QUẢN LÝ BÁC SĨ ---
   Widget _buildManageDoctorsTab() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -303,7 +389,9 @@ class _AdminPageState extends State<AdminPage>
                   doc['name'],
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                subtitle: Text("${doc['dept']} - ${doc['hospital']}"),
+                subtitle: Text(
+                  "${_getDisplayName(doc['dept'])} - ${doc['hospital']}",
+                ),
                 trailing: IconButton(
                   icon: const Icon(
                     Icons.delete_outline,
@@ -320,29 +408,26 @@ class _AdminPageState extends State<AdminPage>
     );
   }
 
-  // --- TAB 3: QUẢN LÝ CHUYÊN KHOA ---
   Widget _buildSpecialityTab() {
     return _buildCommonTab(
       controller: _specialityNameController,
-      hint: "Tên chuyên khoa mới",
+      hint: adminLang['hint_dept']!,
       collection: "specialities",
       onSave: _saveSpeciality,
       isSpeciality: true,
     );
   }
 
-  // --- TAB 4: QUẢN LÝ BỆNH VIỆN ---
   Widget _buildHospitalTab() {
     return _buildCommonTab(
       controller: _hospitalNameController,
-      hint: "Tên bệnh viện mới",
+      hint: adminLang['hint_hosp']!,
       collection: "hospitals",
       onSave: _saveHospital,
       isSpeciality: false,
     );
   }
 
-  // Widget dùng chung cho Tab Chuyên khoa và Bệnh viện
   Widget _buildCommonTab({
     required TextEditingController controller,
     required String hint,
@@ -409,7 +494,7 @@ class _AdminPageState extends State<AdminPage>
                         ),
                       ),
                       title: Text(
-                        name,
+                        _getDisplayName(name),
                         style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
                       trailing: IconButton(
@@ -431,7 +516,6 @@ class _AdminPageState extends State<AdminPage>
     );
   }
 
-  // --- WIDGET DROPDOWN ĐỘNG ---
   Widget _buildDynamicDropdown(
     String collection,
     String? value,
@@ -456,10 +540,15 @@ class _AdminPageState extends State<AdminPage>
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: value,
-              hint: const Text("Bấm để chọn"),
+              hint: Text(adminLang['choose']!),
               isExpanded: true,
               items: items
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e,
+                      child: Text(_getDisplayName(e)),
+                    ),
+                  )
                   .toList(),
               onChanged: onChanged,
             ),
@@ -500,14 +589,12 @@ class _AdminPageState extends State<AdminPage>
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Xác nhận xoá?"),
-        content: Text(
-          "Thắng có chắc muốn xoá '$name' không? Dữ liệu sẽ mất vĩnh viễn.",
-        ),
+        title: Text(adminLang['confirm_del']!),
+        content: Text("${adminLang['del_desc']} (${_getDisplayName(name)})"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("HỦY"),
+            child: Text(adminLang['cancel']!),
           ),
           ElevatedButton(
             onPressed: () {
@@ -515,9 +602,9 @@ class _AdminPageState extends State<AdminPage>
               Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text(
-              "XOÁ NGAY",
-              style: TextStyle(color: Colors.white),
+            child: Text(
+              adminLang['del_now']!,
+              style: const TextStyle(color: Colors.white),
             ),
           ),
         ],
