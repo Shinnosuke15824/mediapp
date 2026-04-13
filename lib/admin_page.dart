@@ -16,6 +16,7 @@ class _AdminPageState extends State<AdminPage>
   // Map ngôn ngữ nội bộ cho trang Admin
   Map<String, String> get adminLang => {
     'title': widget.isVietnamese ? "Hệ Thống Quản Trị" : "Admin System",
+    'tab_doc': widget.isVietnamese ? "BÁC SĨ" : "DOCTORS", // Tab mới gộp chung
     'tab_add': widget.isVietnamese ? "THÊM BÁC SĨ" : "ADD DOCTOR",
     'tab_list': widget.isVietnamese ? "DANH SÁCH BS" : "DOCTORS LIST",
     'tab_dept': widget.isVietnamese ? "CHUYÊN KHOA" : "SPECIALITY",
@@ -69,7 +70,8 @@ class _AdminPageState extends State<AdminPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    // Đổi thành 3 Tab (vì đã gộp Tab Thêm BS và Danh sách BS làm 1)
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -217,10 +219,16 @@ class _AdminPageState extends State<AdminPage>
         'image': _imageLinkController.text.trim(),
         'createdAt': FieldValue.serverTimestamp(),
       });
+
+      // Xóa form sau khi lưu thành công
       _nameController.clear();
       _imageLinkController.clear();
+      setState(() {
+        _selectedDept = null;
+        _selectedHospital = null;
+      });
+
       _showSuccess(adminLang['msg_save_doc']!);
-      _tabController.animateTo(1);
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -256,8 +264,10 @@ class _AdminPageState extends State<AdminPage>
           unselectedLabelColor: Colors.white70,
           isScrollable: true,
           tabs: [
-            Tab(icon: const Icon(Icons.person_add), text: adminLang['tab_add']),
-            Tab(icon: const Icon(Icons.list_alt), text: adminLang['tab_list']),
+            Tab(
+              icon: const Icon(Icons.medical_services),
+              text: adminLang['tab_doc'],
+            ),
             Tab(icon: const Icon(Icons.category), text: adminLang['tab_dept']),
             Tab(
               icon: const Icon(Icons.local_hospital),
@@ -269,142 +279,216 @@ class _AdminPageState extends State<AdminPage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildAddDoctorTab(),
-          _buildManageDoctorsTab(),
-          _buildSpecialityTab(),
-          _buildHospitalTab(),
+          _buildDoctorTab(), // Tab gộp: Form Thêm + Danh sách Bác sĩ
+          _buildSpecialityTab(), // Tab Chuyên khoa
+          _buildHospitalTab(), // Tab Bệnh viện
         ],
       ),
     );
   }
 
-  Widget _buildAddDoctorTab() {
+  // --- TAB GỘP: QUẢN LÝ BÁC SĨ (THÊM + DANH SÁCH) ---
+  Widget _buildDoctorTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(25),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildProInput(
-                adminLang['name_label']!,
-                _nameController,
-                Icons.person_outline,
+      padding: const EdgeInsets.all(15),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. KHU VỰC FORM THÊM BÁC SĨ
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.person_add_alt_1,
+                        color: Colors.blue[700],
+                        size: 28,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        adminLang['tab_add']!,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildProInput(
+                    adminLang['name_label']!,
+                    _nameController,
+                    Icons.person_outline,
+                  ),
+                  const SizedBox(height: 15),
+                  Text(
+                    adminLang['dept_label']!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDynamicDropdown(
+                    "specialities",
+                    _selectedDept,
+                    (val) => setState(() => _selectedDept = val),
+                  ),
+                  const SizedBox(height: 15),
+                  _buildProInput(
+                    adminLang['img_label']!,
+                    _imageLinkController,
+                    Icons.link,
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    adminLang['hosp_label']!,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDynamicDropdown(
+                    "hospitals",
+                    _selectedHospital,
+                    (val) => setState(() => _selectedHospital = val),
+                  ),
+                  const SizedBox(height: 25),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : _saveDoctor,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              adminLang['save_btn']!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 15),
-              Text(
-                adminLang['dept_label']!,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          // 2. KHU VỰC DANH SÁCH BÁC SĨ
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            child: Text(
+              adminLang['tab_list']!,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
               ),
-              const SizedBox(height: 8),
-              _buildDynamicDropdown(
-                "specialities",
-                _selectedDept,
-                (val) => setState(() => _selectedDept = val),
-              ),
-              const SizedBox(height: 15),
-              _buildProInput(
-                adminLang['img_label']!,
-                _imageLinkController,
-                Icons.link,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                adminLang['hosp_label']!,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: Colors.grey,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildDynamicDropdown(
-                "hospitals",
-                _selectedHospital,
-                (val) => setState(() => _selectedHospital = val),
-              ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveDoctor,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700],
+            ),
+          ),
+          const SizedBox(height: 10),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('doctors')
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData)
+                return const Center(child: CircularProgressIndicator());
+
+              if (snapshot.data!.docs.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      "Chưa có bác sĩ nào trong hệ thống.",
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                shrinkWrap:
+                    true, // Quan trọng: Cho phép ListView cuộn chung với SingleChildScrollView tổng
+                physics:
+                    const NeverScrollableScrollPhysics(), // Tắt cuộn riêng của ListView
+                itemCount: snapshot.data!.docs.length,
+                itemBuilder: (context, i) {
+                  var doc = snapshot.data!.docs[i];
+                  String imgPath = doc['image'].toString();
+                  return Card(
+                    elevation: 1,
+                    margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15),
                     ),
-                  ),
-                  child: _isSaving
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          adminLang['save_btn']!,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 15,
+                        vertical: 5,
+                      ),
+                      leading: CircleAvatar(
+                        radius: 25,
+                        backgroundImage: imgPath.startsWith('http')
+                            ? NetworkImage(imgPath)
+                            : AssetImage(imgPath) as ImageProvider,
+                      ),
+                      title: Text(
+                        doc['name'],
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(
+                        "${_getDisplayName(doc['dept'])} - ${doc['hospital']}",
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.redAccent,
                         ),
-                ),
-              ),
-            ],
+                        onPressed: () => _confirmDeleteDialog(
+                          "doctors",
+                          doc.id,
+                          doc['name'],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
           ),
-        ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildManageDoctorsTab() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('doctors')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
-        return ListView.builder(
-          padding: const EdgeInsets.all(15),
-          itemCount: snapshot.data!.docs.length,
-          itemBuilder: (context, i) {
-            var doc = snapshot.data!.docs[i];
-            String imgPath = doc['image'].toString();
-            return Card(
-              margin: const EdgeInsets.only(bottom: 10),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: imgPath.startsWith('http')
-                      ? NetworkImage(imgPath)
-                      : AssetImage(imgPath) as ImageProvider,
-                ),
-                title: Text(
-                  doc['name'],
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  "${_getDisplayName(doc['dept'])} - ${doc['hospital']}",
-                ),
-                trailing: IconButton(
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                  ),
-                  onPressed: () =>
-                      _confirmDeleteDialog("doctors", doc.id, doc['name']),
-                ),
-              ),
-            );
-          },
-        );
-      },
     );
   }
 
