@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 1. Thêm import này
-import 'package:google_sign_in/google_sign_in.dart'; // Thêm import Google
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'home.dart';
 
 class Login extends StatefulWidget {
@@ -14,7 +14,7 @@ class Login extends StatefulWidget {
 class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
   // Thêm Ticker cho hiệu ứng
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn(); // Khởi tạo GoogleSignIn
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -28,13 +28,13 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
   bool _rememberMe = false;
 
   // --- PHẦN THÊM MỚI: QUẢN LÝ MÀN HÌNH CHÀO (SPLASH) ---
-  bool _showSplash = true; // Biến kiểm soát hiển thị splash
+  bool _showSplash = true;
   double _opacity = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedCredentials(); // Lấy dữ liệu đã lưu khi mở trang
+    _loadSavedCredentials();
 
     // Hiệu ứng Fade In cho nội dung Login
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -73,7 +73,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     }
   }
 
-  // HÀM XỬ LÝ AUTH - ĐÃ TỐI ƯU CHUYỂN TRANG
+  // HÀM XỬ LÝ AUTH
   Future<void> _handleAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -143,14 +143,15 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     } on FirebaseAuthException catch (e) {
       print("Lỗi Firebase: ${e.code}");
       String message = "Đã có lỗi xảy ra";
-      if (e.code == 'user-not-found' || e.code == 'invalid-credential')
+      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
         message = "Email hoặc mật khẩu không đúng Thắng ơi!";
-      else if (e.code == 'wrong-password')
+      } else if (e.code == 'wrong-password') {
         message = "Sai mật khẩu rồi kìa!";
-      else if (e.code == 'email-already-in-use')
+      } else if (e.code == 'email-already-in-use') {
         message = "Email này có người dùng rồi!";
-      else if (e.code == 'weak-password')
+      } else if (e.code == 'weak-password') {
         message = "Mật khẩu quá yếu (cần > 6 ký tự)!";
+      }
 
       _showSnackBar(message, Colors.red);
     } catch (e) {
@@ -160,36 +161,85 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     }
   }
 
-  // CÁC HÀM KHÁC GIỮ NGUYÊN
+  // --- HÀM XỬ LÝ QUÊN MẬT KHẨU ---
   Future<void> _forgotPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      _showSnackBar("Vui lòng nhập email của bạn!", Colors.orange);
+      _showSnackBar(
+        "Vui lòng nhập Email vào ô trống ở trên trước nhé!",
+        Colors.orange,
+      );
       return;
     }
+
     try {
+      // Gửi mail thực tế từ Firebase
       await _auth.sendPasswordResetEmail(email: email);
-      _showSnackBar("Đã gửi link reset vào email!", Colors.green);
+
+      // Hiển thị Dialog thông báo rõ ràng cho người dùng
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.mark_email_read, color: Colors.green),
+                SizedBox(width: 10),
+                Text("Đã gửi Email!"),
+              ],
+            ),
+            content: Text(
+              "Chúng tôi đã gửi một đường link đặt lại mật khẩu đến email:\n\n$email\n\nVui lòng mở hộp thư (hoặc mục Thư rác) và bấm vào đường link để đổi mật khẩu mới.",
+              style: const TextStyle(height: 1.5),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text(
+                  "Đã hiểu",
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
-      _showSnackBar("Không gửi được link reset!", Colors.red);
+      _showSnackBar(
+        "Không thể gửi email. Vui lòng kiểm tra lại email của bạn!",
+        Colors.red,
+      );
     }
   }
 
-  // LOGIC ĐĂNG NHẬP GOOGLE
+  // --- HÀM ĐĂNG NHẬP GOOGLE ---
   Future<void> _signInWithGoogle() async {
     setState(() => isLoading = true);
     try {
+      // QUAN TRỌNG: Gọi lệnh đăng xuất Google trước để xóa phiên làm việc cũ
+      // Việc này sẽ ép hệ thống luôn hiển thị bảng chọn tài khoản Google mỗi khi bấm vào.
+      await _googleSignIn.signOut();
+
+      // Tiến hành chọn tài khoản và đăng nhập
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         setState(() => isLoading = false);
-        return;
+        return; // Người dùng hủy chọn tài khoản
       }
+
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
+
       UserCredential userCredential = await _auth.signInWithCredential(
         credential,
       );
@@ -235,8 +285,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
             duration: const Duration(seconds: 1),
             child: SafeArea(
               child: SingleChildScrollView(
-                physics:
-                    const BouncingScrollPhysics(), // Hiệu ứng cuộn mượt hơn
+                physics: const BouncingScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -269,9 +318,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                           fontFamily: 'Ubuntu',
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
-                          color: isDark
-                              ? Colors.white
-                              : Colors.black, // Đổi màu tiêu đề
+                          color: isDark ? Colors.white : Colors.black,
                         ),
                       ),
                     ),
@@ -300,9 +347,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                           fontFamily: 'Ubuntu',
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          color: isDark
-                              ? Colors.white70
-                              : Colors.black, // Đổi màu label
+                          color: isDark ? Colors.white70 : Colors.black,
                         ),
                       ),
                     ),
@@ -594,7 +639,6 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                 child: Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      // Hiệu ứng Gradient cho "xịn"
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [Color(0xFF0066FF), Color(0xFF003399)],
