@@ -12,42 +12,45 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
-  // Thêm Ticker cho hiệu ứng
+  // Khởi tạo các đối tượng xác thực từ Firebase và Google
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
+  // Các bộ điều khiển dữ liệu cho các ô nhập văn bản (TextField)
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
 
-  bool _isPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
-  bool isLogin = true;
-  bool isLoading = false;
-  bool _rememberMe = false;
+  // Các biến trạng thái quản lý giao diện và logic
+  bool _isPasswordVisible = false; // Ẩn/hiện mật khẩu
+  bool _isConfirmPasswordVisible = false; // Ẩn/hiện mật khẩu xác nhận
+  bool isLogin = true; // Cờ chuyển đổi giữa chế độ Đăng nhập và Đăng ký
+  bool isLoading = false; // Trạng thái chờ khi xử lý dữ liệu
+  bool _rememberMe = false; // Trạng thái lưu thông tin đăng nhập
 
-  // --- PHẦN THÊM MỚI: QUẢN LÝ MÀN HÌNH CHÀO (SPLASH) ---
+  // Quản lý màn hình chờ (Splash Screen) và hiệu ứng mờ dần (Opacity)
   bool _showSplash = true;
   double _opacity = 0.0;
 
   @override
   void initState() {
     super.initState();
+    // Tải thông tin email/mật khẩu đã lưu từ bộ nhớ máy (nếu có)
     _loadSavedCredentials();
 
-    // Hiệu ứng Fade In cho nội dung Login
+    // Hiệu ứng mờ dần (Fade In) nội dung đăng nhập sau 100ms
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted) setState(() => _opacity = 1.0);
     });
 
-    // Sau 2.5 giây sẽ tắt màn hình Splash có màu sắc đi
+    // Tự động tắt màn hình Splash sau 2.5 giây
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) setState(() => _showSplash = false);
     });
   }
 
-  // HÀM LẤY DỮ LIỆU ĐÃ LƯU
+  // Hàm truy xuất Email và Mật khẩu đã lưu từ SharedPreferences
   Future<void> _loadSavedCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -59,7 +62,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     });
   }
 
-  // HÀM LƯU HOẶC XÓA DỮ LIỆU
+  // Hàm lưu hoặc xóa thông tin đăng nhập vào bộ nhớ máy
   Future<void> _saveCredentials() async {
     final prefs = await SharedPreferences.getInstance();
     if (_rememberMe) {
@@ -73,18 +76,19 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     }
   }
 
-  // HÀM XỬ LÝ AUTH
+  // --- HÀM XỬ LÝ ĐĂNG NHẬP / ĐĂNG KÝ CHÍNH ---
   Future<void> _handleAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPass = _confirmPasswordController.text.trim();
 
+    // Kiểm tra dữ liệu đầu vào không được để trống
     if (email.isEmpty || password.isEmpty) {
       _showSnackBar("Vui lòng nhập email và mật khẩu!", Colors.orange);
       return;
     }
 
-    // Kiểm tra định dạng Email
+    // Kiểm tra định dạng Email hợp lệ bằng biểu thức chính quy (Regular Expression)
     bool emailValid = RegExp(
       r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+",
     ).hasMatch(email);
@@ -94,30 +98,28 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
       return;
     }
 
+    // Kiểm tra mật khẩu xác nhận khi ở chế độ Đăng ký
     if (!isLogin && password != confirmPass) {
       _showSnackBar("Mật khẩu xác nhận không khớp!", Colors.redAccent);
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() => isLoading = true); // Bắt đầu trạng thái chờ
 
     try {
       if (isLogin) {
-        // --- LOGIC ĐĂNG NHẬP ---
-        print("Đang kết nối Firebase...");
+        // Thực hiện lệnh Đăng nhập với Email và Mật khẩu qua Firebase Auth
         UserCredential userCredential = await _auth.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
 
         if (userCredential.user != null) {
-          await _saveCredentials(); // Lưu thông tin nếu đăng nhập thành công
-
-          print("Đăng nhập thành công! Đang chuyển trang...");
+          await _saveCredentials(); // Lưu thông tin nếu người dùng tick "Nhớ mật khẩu"
           _showSnackBar("Chào mừng bạn đã quay trở lại!", Colors.green);
 
           if (mounted) {
-            // Dùng pushAndRemoveUntil để dọn dẹp các trang cũ cho nhẹ app
+            // Chuyển hướng sang màn hình chính và xóa lịch sử các trang trước đó
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -126,7 +128,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
           }
         }
       } else {
-        // --- LOGIC ĐĂNG KÝ ---
+        // Thực hiện lệnh Đăng ký tài khoản mới trên hệ thống Firebase
         await _auth.createUserWithEmailAndPassword(
           email: email,
           password: password,
@@ -137,47 +139,46 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
           _emailController.clear();
           _passwordController.clear();
           _confirmPasswordController.clear();
-          setState(() => isLogin = true);
+          setState(
+            () => isLogin = true,
+          ); // Chuyển về màn hình đăng nhập sau khi đăng ký thành công
         }
       }
     } on FirebaseAuthException catch (e) {
-      print("Lỗi Firebase: ${e.code}");
+      // Xử lý các mã lỗi phản hồi từ Firebase Authentication
       String message = "Đã có lỗi xảy ra";
       if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
-        message = "Email hoặc mật khẩu không đúng Thắng ơi!";
-      } else if (e.code == 'wrong-password') {
-        message = "Sai mật khẩu rồi kìa!";
+        message = "Email hoặc mật khẩu không chính xác!";
       } else if (e.code == 'email-already-in-use') {
-        message = "Email này có người dùng rồi!";
+        message = "Email này đã được đăng ký bởi tài khoản khác!";
       } else if (e.code == 'weak-password') {
-        message = "Mật khẩu quá yếu (cần > 6 ký tự)!";
+        message = "Mật khẩu quá yếu (yêu cầu tối thiểu 6 ký tự)!";
       }
-
       _showSnackBar(message, Colors.red);
     } catch (e) {
       _showSnackBar("Lỗi hệ thống: ${e.toString()}", Colors.red);
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false); // Tắt trạng thái chờ
     }
   }
 
-  // --- HÀM XỬ LÝ QUÊN MẬT KHẨU ---
+  // --- HÀM XỬ LÝ KHÔI PHỤC MẬT KHẨU ---
   Future<void> _forgotPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
       _showSnackBar(
-        "Vui lòng nhập Email vào ô trống ở trên trước nhé!",
+        "Vui lòng nhập Email để hệ thống gửi link khôi phục!",
         Colors.orange,
       );
       return;
     }
 
     try {
-      // Gửi mail thực tế từ Firebase
+      // Gửi yêu cầu đặt lại mật khẩu đến địa chỉ Email của người dùng
       await _auth.sendPasswordResetEmail(email: email);
 
-      // Hiển thị Dialog thông báo rõ ràng cho người dùng
       if (mounted) {
+        // Hiển thị thông báo hướng dẫn người dùng kiểm tra hộp thư
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -192,19 +193,13 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
               ],
             ),
             content: Text(
-              "Chúng tôi đã gửi một đường link đặt lại mật khẩu đến email:\n\n$email\n\nVui lòng mở hộp thư (hoặc mục Thư rác) và bấm vào đường link để đổi mật khẩu mới.",
+              "Hệ thống đã gửi link đặt lại mật khẩu đến:\n$email\nVui lòng kiểm tra hộp thư đến hoặc thư rác.",
               style: const TextStyle(height: 1.5),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text(
-                  "Đã hiểu",
-                  style: TextStyle(
-                    color: Colors.blue,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: const Text("Đã hiểu"),
               ),
             ],
           ),
@@ -212,27 +207,27 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
       }
     } catch (e) {
       _showSnackBar(
-        "Không thể gửi email. Vui lòng kiểm tra lại email của bạn!",
+        "Lỗi: Không tìm thấy tài khoản tương ứng với Email này!",
         Colors.red,
       );
     }
   }
 
-  // --- HÀM ĐĂNG NHẬP GOOGLE ---
+  // --- HÀM ĐĂNG NHẬP BẰNG TÀI KHOẢN GOOGLE ---
   Future<void> _signInWithGoogle() async {
     setState(() => isLoading = true);
     try {
-      // QUAN TRỌNG: Gọi lệnh đăng xuất Google trước để xóa phiên làm việc cũ
-      // Việc này sẽ ép hệ thống luôn hiển thị bảng chọn tài khoản Google mỗi khi bấm vào.
+      // Xóa phiên làm việc Google cũ để luôn hiện bảng chọn tài khoản
       await _googleSignIn.signOut();
 
-      // Tiến hành chọn tài khoản và đăng nhập
+      // Mở giao diện chọn tài khoản Google trên thiết bị
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         setState(() => isLoading = false);
-        return; // Người dùng hủy chọn tài khoản
+        return;
       }
 
+      // Lấy thông tin xác thực từ Google
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
@@ -240,6 +235,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
         idToken: googleAuth.idToken,
       );
 
+      // Đăng nhập vào Firebase bằng thông tin xác thực Google
       UserCredential userCredential = await _auth.signInWithCredential(
         credential,
       );
@@ -259,6 +255,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     }
   }
 
+  // Hàm tiện ích hiển thị thông báo SnackBar nhanh trên màn hình
   void _showSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -271,15 +268,14 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    // Lấy trạng thái Dark Mode từ Theme
+    // Kiểm tra trạng thái Dark Mode của hệ thống
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
-        // Dùng Stack để chồng màn hình Splash lên Login
         children: [
-          // 1. GIAO DIỆN LOGIN CHÍNH
+          // LỚP 1: GIAO DIỆN ĐĂNG NHẬP CHÍNH (Sử dụng AnimatedOpacity cho hiệu ứng mượt)
           AnimatedOpacity(
             opacity: _opacity,
             duration: const Duration(seconds: 1),
@@ -310,6 +306,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    // Tiêu đề thay đổi động theo trạng thái isLogin
                     Padding(
                       padding: const EdgeInsets.only(left: 25.0, top: 25.0),
                       child: Text(
@@ -335,6 +332,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    // KHỐI EMAIL
                     Padding(
                       padding: const EdgeInsets.only(
                         left: 29.0,
@@ -359,6 +357,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                         isDark: isDark,
                       ),
                     ),
+                    // KHỐI MẬT KHẨU
                     Padding(
                       padding: const EdgeInsets.only(
                         left: 29.0,
@@ -396,6 +395,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    // KHỐI XÁC NHẬN MẬT KHẨU (Chỉ hiện khi Đăng ký)
                     if (!isLogin)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,6 +443,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                           ),
                         ],
                       ),
+                    // Quên mật khẩu & Nhớ mật khẩu
                     if (isLogin)
                       Padding(
                         padding: const EdgeInsets.only(right: 25.0),
@@ -483,6 +484,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                           ],
                         ),
                       ),
+                    // NÚT ĐĂNG NHẬP / ĐĂNG KÝ
                     Padding(
                       padding: EdgeInsets.only(
                         left: 25.0,
@@ -538,6 +540,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    // NÚT ĐĂNG NHẬP GOOGLE
                     Padding(
                       padding: const EdgeInsets.only(top: 15.0),
                       child: Center(
@@ -585,6 +588,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    // Dòng nhắc chuyển đổi giữa Đăng nhập và Đăng ký
                     Padding(
                       padding: const EdgeInsets.only(top: 40.0, bottom: 40.0),
                       child: Center(
@@ -630,7 +634,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
             ),
           ),
 
-          // 2. MÀN HÌNH CHÀO (SPLASH LAYER) - CHỈ HIỂN THỊ KHI MỚI VÀO
+          // LỚP 2: MÀN HÌNH SPLASH (Sẽ mất đi sau 2.5s)
           if (_showSplash)
             Positioned.fill(
               child: AnimatedOpacity(
@@ -691,6 +695,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     );
   }
 
+  // Widget xây dựng nút Quay lại
   Widget _buildBackButton() {
     return Container(
       decoration: BoxDecoration(
@@ -709,6 +714,7 @@ class _LoginState extends State<Login> with SingleTickerProviderStateMixin {
     );
   }
 
+  // Widget dùng chung để tạo các ô nhập liệu (Email, Mật khẩu)
   Widget _buildTextField({
     required String hint,
     bool isPassword = false,

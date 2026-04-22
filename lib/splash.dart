@@ -25,14 +25,12 @@ class _SplashState extends State<Splash> {
     });
   }
 
-  // Hàm kiểm tra xem Thắng đã đăng nhập chưa
   void _checkAuthAndNavigate() {
     // Lấy thông tin user hiện tại từ Firebase
     User? user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
       // Nếu đã đăng nhập (user khác null) -> Vào thẳng trang chủ
-      // Thắng thay 'HomeScreen()' bằng tên Class trang chủ của bạn nhé
       print("Thắng đã đăng nhập: ${user.email}");
       Navigator.pushReplacement(
         context,
@@ -56,7 +54,6 @@ class _SplashState extends State<Splash> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Gengar giữ nguyên icon và vòng xoay chuyên nghiệp của Thắng
             Image.asset('assets/images/icon.png', width: 150),
             const SizedBox(height: 20),
             const CircularProgressIndicator(
